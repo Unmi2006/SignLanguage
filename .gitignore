@@ -1,0 +1,16 @@
+# Python/local artifacts
+.venv/
+.venv-tfjs/
+__pycache__/
+*.py[cod]
+
+# Datasets and original Python model files; do not commit the 626 MB dataset ZIP
+Dataset.zip
+*.keras
+*.h5
+*.task
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/

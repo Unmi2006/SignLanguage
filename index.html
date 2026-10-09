@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080d14">
+  <meta name="description" content="SignVision AI — browser-based CNN hand-sign recognition demo.">
+  <title>SignVision AI | Hand Sign Recognition</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-wrap">
+        <div class="brand-mark">SV</div>
+        <div>
+          <div class="eyebrow">BROWSER-BASED COMPUTER VISION</div>
+          <h1>SignVision <span>AI</span></h1>
+        </div>
+      </div>
+      <div class="status-chip"><span id="healthDot" class="dot"></span><span id="healthText">Loading AI models…</span><span class="local-pill">CLIENT-SIDE</span></div>
+    </header>
+
+    <main>
+      <section class="hero-row">
+        <div>
+          <p class="eyebrow cyan">CNN · MEDIAPIPE · TENSORFLOW.JS</p>
+          <h2>Turn hand signs into <span class="gradient-text">letters.</span></h2>
+          <p class="subtitle">Run hand detection and CNN inference in your browser. Camera frames are processed on this device and are not uploaded to a prediction server.</p>
+        </div>
+        <div class="hero-stat"><span class="stat-label">SIGN CLASSES</span><strong id="classCount">26</strong><span class="stat-foot">Loaded from your class labels</span></div>
+      </section>
+
+      <div id="modelWarning" class="warning hidden"></div>
+
+      <section class="main-grid">
+        <article class="panel camera-panel">
+          <div class="panel-head">
+            <div><span class="panel-index">01 / INPUT</span><h3>Live camera</h3></div>
+            <span id="cameraBadge" class="small-badge">OFFLINE</span>
+          </div>
+          <div class="camera-stage" id="cameraStage">
+            <video id="video" autoplay playsinline muted></video>
+            <canvas id="overlay"></canvas>
+            <div id="cameraPlaceholder" class="camera-placeholder"><div class="camera-icon">⌁</div><strong>Camera is off</strong><span>Start the camera to begin recognition.</span></div>
+            <div class="rec-pill"><span class="rec-dot"></span> LIVE INPUT</div>
+          </div>
+          <div class="camera-controls">
+            <button id="startBtn" class="btn btn-primary"><span>▶</span> Start camera</button>
+            <button id="stopBtn" class="btn btn-quiet" disabled>Stop</button>
+            <label class="camera-select-wrap">Camera <select id="cameraSelect" aria-label="Choose camera"><option value="">Default camera</option></select></label>
+          </div>
+          <p class="micro-copy">Tip: keep the full hand in frame, use good lighting, and hold one sign steady.</p>
+        </article>
+
+        <article class="panel result-panel">
+          <div class="panel-head">
+            <div><span class="panel-index">02 / INFERENCE</span><h3>Recognition result</h3></div>
+            <span class="small-badge green-badge">CNN MODEL</span>
+          </div>
+          <div class="prediction-layout">
+            <div class="letter-tile"><span class="letter-label">PREDICTED LETTER</span><div id="letterValue" class="letter-value">—</div><div id="predictionHint" class="prediction-hint">Waiting for a hand…</div></div>
+            <div class="confidence-box">
+              <div class="confidence-title"><span>Model confidence</span><strong id="confidenceValue">—</strong></div>
+              <div class="meter"><div id="confidenceBar" class="meter-fill"></div></div>
+              <p class="confidence-note">Softmax score; not a calibrated probability of correctness.</p>
+            </div>
+          </div>
+          <div class="crop-section">
+            <div class="crop-head"><span>HAND CROP SENT TO CNN</span><span id="cropMeta">128 × 128</span></div>
+            <div class="crop-stage"><img id="cropImage" alt="Detected hand crop preview"><div id="cropPlaceholder" class="crop-placeholder">Crop preview appears when a hand is detected.</div></div>
+          </div>
+          <div id="statusMessage" class="status-message"><span class="status-icon">i</span><span>Loading TensorFlow.js, hand detector and model files.</span></div>
+        </article>
+      </section>
+
+      <section class="panel builder-panel">
+        <div class="panel-head builder-head">
+          <div><span class="panel-index">03 / TEXT BUILDER</span><h3>Build a word or sentence</h3><p class="panel-subtitle">Predictions are not added automatically. Review the letter, then add it yourself.</p></div>
+          <div class="builder-actions-top"><button id="copyBtn" class="btn btn-quiet">Copy text</button><button id="speakBtn" class="btn btn-quiet">Speak</button></div>
+        </div>
+        <textarea id="sentenceBox" placeholder="Your recognized letters will appear here…" spellcheck="false"></textarea>
+        <div class="builder-bottom">
+          <div class="builder-buttons">
+            <button id="addBtn" class="btn btn-primary" disabled>＋ Add detected letter</button>
+            <button id="spaceBtn" class="btn btn-quiet">Add space</button>
+            <button id="backspaceBtn" class="btn btn-quiet">⌫ Backspace</button>
+            <button id="clearBtn" class="btn btn-danger-quiet">Clear all</button>
+          </div>
+          <div id="charCount" class="char-count">0 characters</div>
+        </div>
+      </section>
+
+      <footer><span>SignVision AI · Browser inference prototype</span><span>Camera frames stay in your browser. TensorFlow.js and MediaPipe assets are downloaded from public CDNs.</span></footer>
+    </main>
+  </div>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>
