@@ -1,5 +1,3 @@
-import { FilesetResolver, HandLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22";
-
 (() => {
   const $ = (id) => document.getElementById(id);
   const video = $("video");
@@ -52,6 +50,19 @@ import { FilesetResolver, HandLandmarker } from "https://cdn.jsdelivr.net/npm/@m
   async function initializeAI() {
     try {
       if (!window.tf) throw new Error("TensorFlow.js CDN did not load. Check your internet connection.");
+
+      // Load MediaPipe dynamically inside this error-handled initializer.
+      // If the CDN fails, the UI controls still initialize and show the error.
+      let visionModule;
+      try {
+        visionModule = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm");
+      } catch (importError) {
+        throw new Error(`MediaPipe JS could not load from jsDelivr: ${importError.message}`);
+      }
+      const { FilesetResolver, HandLandmarker } = visionModule;
+      if (!FilesetResolver || !HandLandmarker) {
+        throw new Error("MediaPipe CDN did not expose FilesetResolver and HandLandmarker.");
+      }
       try {
         await window.tf.setBackend("webgl");
         await window.tf.ready();

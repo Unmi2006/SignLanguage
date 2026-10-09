@@ -2,7 +2,7 @@
 
 SignVision AI recognizes static hand signs from a webcam using **MediaPipe Hand Landmarker** and your trained **CNN converted to TensorFlow.js**. The live camera frames and CNN inference run in the visitor's browser; this deployment does not need a Python inference server.
 
-> **Model files must be exported before live recognition works.** The starter includes class labels and a placeholder in `models/tfjs_model/`. Follow `MODEL_EXPORT_GUIDE.md` to create `model.json` and the weight shard(s) from your existing Colab model.
+> **Browser model included.** This package contains `models/tfjs_model/model.json` and `group1-shard1of1.bin`, plus the A–Z label file. The MediaPipe module is dynamically loaded so initialization errors are shown in the page rather than preventing all controls from wiring up.
 
 ## Project layout
 
@@ -26,9 +26,8 @@ SignVisionAI_GitHub_Vercel/
 ## Before deployment: add the TensorFlow.js model
 
 1. In Google Drive open `SignLanguage/TrainedModel/` and make sure `hand_sign_cnn.keras` and `class_names.json` are there.
-2. Follow [MODEL_EXPORT_GUIDE.md](MODEL_EXPORT_GUIDE.md). It removes training-only image augmentation from the exported model, preserves the rescaling layer, and converts it to TensorFlow.js format.
-3. Copy the original `class_names.json` to `models/class_names.json` (overwrite the sample file).
-4. Copy the converted `model.json` and every `group*-shard*.bin` file into `models/tfjs_model/`. Remove `README_TO_REPLACE.txt` when finished.
+2. The supplied TensorFlow.js model files are already placed under `models/tfjs_model/`. Keep `model.json` and every referenced weight shard together.
+3. Confirm `models/class_names.json` matches the exact class order used during training. The supplied file lists A–Z.
 5. Ensure no dataset ZIP, training images, or original `.keras` file is in the repo. The converted model files and the class-label JSON are needed for inference.
 
 TensorFlow.js loads a Layers model using `tf.loadLayersModel('/models/tfjs_model/model.json')`; the JSON references its shard files. See the official conversion guide: <https://www.tensorflow.org/js/tutorials/conversion/import_keras>.
