@@ -51,13 +51,34 @@
     try {
       if (!window.tf) throw new Error("TensorFlow.js CDN did not load. Check your internet connection.");
 
-      // Load MediaPipe dynamically inside this error-handled initializer.
-      // If the CDN fails, the UI controls still initialize and show the error.
-      let visionModule;
-      try {
-        visionModule = await import("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/+esm");
-      } catch (importError) {
-        throw new Error(`MediaPipe JS could not load from jsDelivr: ${importError.message}`);
+      // Load the official MediaPipe ESM bundle. Avoid the jsDelivr +esm
+      // transform endpoint, which can fail to load in some browsers/networks.
+      // Try jsDelivr's published bundle first, then fall back to unpkg.
+      let visionModule = null;
+      let visionWasmBase = null;
+      let lastImportError = null;
+      const visionCdnCandidates = [
+        {
+          module: "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs",
+          wasm: "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm"
+        },
+        {
+          module: "https://unpkg.com/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs",
+          wasm: "https://unpkg.com/@mediapipe/tasks-vision@0.10.22/wasm"
+        }
+      ];
+      for (const candidate of visionCdnCandidates) {
+        try {
+          visionModule = await import(candidate.module);
+          visionWasmBase = candidate.wasm;
+          break;
+        } catch (importError) {
+          lastImportError = importError;
+          console.warn(`MediaPipe bundle failed from ${candidate.module}`, importError);
+        }
+      }
+      if (!visionModule) {
+        throw new Error(`MediaPipe could not load from either CDN. Check browser/network access. Details: ${lastImportError?.message || "unknown import error"}`);
       }
       const { FilesetResolver, HandLandmarker } = visionModule;
       if (!FilesetResolver || !HandLandmarker) {
@@ -86,9 +107,7 @@
         throw new Error(`Model output has ${outShape[outShape.length - 1]} classes but labels contain ${classNames.length}.`);
       }
 
-      const vision = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm"
-      );
+      const vision = await FilesetResolver.forVisionTasks(visionWasmBase);
       handLandmarker = await HandLandmarker.createFromOptions(vision, {
         baseOptions: { modelAssetPath: HAND_MODEL_URL },
         runningMode: "VIDEO",
