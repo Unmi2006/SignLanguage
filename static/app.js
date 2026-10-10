@@ -12,9 +12,12 @@
   const cropImage = $("cropImage");
   const cropPlaceholder = $("cropPlaceholder");
 
-  const MODEL_URL = "/models/tfjs_model/model.json";
+  const MODEL_URL = "/models/tfjs_model/model.json?v=2";
   const LABELS_URL = "/models/class_names.json";
-  const HAND_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task";
+  const HAND_MODEL_URLS = [
+    "/models/hand_landmarker.task", // optional local copy (see README note)
+    "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+  ];
   const IMAGE_SIZE = 128;
   const PREDICTION_INTERVAL_MS = 320;
   const MIN_ADD_CONFIDENCE = 0.55;
@@ -57,14 +60,17 @@
       let visionModule = null;
       let visionWasmBase = null;
       let lastImportError = null;
+      // 0.10.22 does not exist on npm (that caused the load failure).
+      // Load the copy bundled in this repo first, then fall back to CDNs.
       const visionCdnCandidates = [
+        { module: "/static/mediapipe/vision_bundle.mjs", wasm: "/static/mediapipe/wasm" },
         {
-          module: "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs",
-          wasm: "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm"
+          module: "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/vision_bundle.mjs",
+          wasm: "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm"
         },
         {
-          module: "https://unpkg.com/@mediapipe/tasks-vision@0.10.22/vision_bundle.mjs",
-          wasm: "https://unpkg.com/@mediapipe/tasks-vision@0.10.22/wasm"
+          module: "https://unpkg.com/@mediapipe/tasks-vision@0.10.35/vision_bundle.mjs",
+          wasm: "https://unpkg.com/@mediapipe/tasks-vision@0.10.35/wasm"
         }
       ];
       for (const candidate of visionCdnCandidates) {
@@ -108,13 +114,22 @@
       }
 
       const vision = await FilesetResolver.forVisionTasks(visionWasmBase);
-      handLandmarker = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: HAND_MODEL_URL },
-        runningMode: "VIDEO",
-        numHands: 2,
-        minHandDetectionConfidence: 0.45,
-        minHandPresenceConfidence: 0.45
-      });
+      let handError = null;
+      for (const url of HAND_MODEL_URLS) {
+        try {
+          const head = url.startsWith("/") ? await fetch(url, { method: "HEAD" }) : { ok: true };
+          if (!head.ok) continue;
+          handLandmarker = await HandLandmarker.createFromOptions(vision, {
+            baseOptions: { modelAssetPath: url },
+            runningMode: "VIDEO",
+            numHands: 2,
+            minHandDetectionConfidence: 0.45,
+            minHandPresenceConfidence: 0.45
+          });
+          break;
+        } catch (e) { handError = e; console.warn("Hand model failed from", url, e); }
+      }
+      if (!handLandmarker) throw new Error(`Hand landmark model could not be loaded. ${handError?.message || ""}`);
 
       $("classCount").textContent = String(classNames.length);
       setModelStatus(true, "AI models ready");
@@ -145,35 +160,69 @@
     } catch (_) { /* Browser may hide camera names until access is granted. */ }
   }
 
+  function cameraErrorMessage(error) {
+    switch (error && error.name) {
+      case "NotAllowedError":
+      case "SecurityError":
+        return "Camera permission was blocked. Click the camera/lock icon in the address bar, set Camera to Allow, then reload. Also check Windows Settings > Privacy > Camera.";
+      case "NotFoundError":
+      case "DevicesNotFoundError":
+        return "No camera was found on this device.";
+      case "NotReadableError":
+      case "TrackStartError":
+        return "The camera is in use by another app or tab (Zoom, Teams, another browser tab). Close it and try again.";
+      case "OverconstrainedError":
+        return "The selected camera is unavailable. Choose another camera.";
+      default:
+        return `${(error && error.message) || error}`;
+    }
+  }
+
   async function startCamera() {
-    if (!classifier || !handLandmarker) {
-      setStatus("AI models are not ready. Follow MODEL_EXPORT_GUIDE.md first.", "error");
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      setStatus("Camera needs a secure (https) page and a browser that supports getUserMedia. Open the https Vercel URL in Chrome or Edge, not inside an in-app browser.", "error");
       return;
     }
     await stopCamera();
     try {
       const selectedId = cameraSelect.value;
-      const videoConstraints = selectedId
+      const preferred = selectedId
         ? { deviceId: { exact: selectedId }, width: { ideal: 640 }, height: { ideal: 480 } }
         : { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } };
-      cameraStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints, audio: false });
+      try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: preferred, audio: false });
+      } catch (firstError) {
+        // Stale deviceId or unsupported constraints: retry with the simplest request.
+        if (firstError.name === "OverconstrainedError" || firstError.name === "NotFoundError") {
+          cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        } else {
+          throw firstError;
+        }
+      }
       video.srcObject = cameraStream;
       video.style.display = "block";
       placeholder.classList.add("hidden");
       await video.play();
       startBtn.disabled = true;
       stopBtn.disabled = false;
-      cameraSelect.disabled = true;
       $("cameraBadge").textContent = "LIVE";
       $("cameraBadge").classList.add("green-badge");
+      const activeId = cameraStream.getVideoTracks()[0]?.getSettings?.().deviceId;
       await listCameras();
+      if (activeId) cameraSelect.value = activeId;
       cameraSelect.disabled = true;
       resizeOverlay();
-      setStatus("Camera connected. Place the complete hand in view and hold one sign steadily.");
+      if (classifier && handLandmarker) {
+        setStatus("Camera connected. Place the complete hand in view and hold one sign steadily.");
+      } else {
+        setStatus("Camera connected. AI models are still loading or failed to load; recognition starts automatically once they are ready.", "warn");
+      }
       timer = setInterval(processCurrentFrame, PREDICTION_INTERVAL_MS);
     } catch (error) {
-      setStatus(`Could not start camera: ${error.message}. Allow camera access in your browser and Windows settings.`, "error");
+      const message = cameraErrorMessage(error);
       await stopCamera();
+      setStatus(`Could not start camera: ${message}`, "error");
+      console.error(error);
     }
   }
 
